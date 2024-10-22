@@ -57,12 +57,12 @@ class Product:
 
   def get_product_id(self):
     query='SELECT product_id FROM products WHERE product_name=%s'
-    self.db_connection.cursor(query, (self.product_name,))
+    self.db_connection.cursor.execute(query, (self.product_name,))
     return self.db_connection.cursor.fetchone()[0]
   
   def assign_to_category(self, category_id):
     query='INSERT INTO products_categories (product_id, category_id) VALUES (%s, %s)'
-    self.db_connection.cursor.execute(query, self.get_product_id(), category_id)
+    self.db_connection.cursor.execute(query, (self.get_product_id(), category_id))
     self.db_connection.db.commit()
 
   
@@ -76,17 +76,17 @@ class Cart:
   def add_to_db(self):
     query='INSERT INTO carts (customer_id) VALUES (%s)'
     self.db_connection.cursor.execute(query, (self.customer_id,))
-    self.db_connection.commit()
+    self.db_connection.db.commit()
     print(f'Customer id {self.customer_id} created cart')
 
   def get_cart_id(self):
     query='SELECT cart_id FROM carts WHERE customer_id = %s'
-    self.db_connection.cusor.execute(query, (self.customer_id,))
+    self.db_connection.cursor.execute(query, (self.customer_id,))
     return self.db_connection.cursor.fetchone()[0]
   
   def add_item(self, product_id, quantity):
     product_query = 'SELECT price, quantity FROM products WHERE product_id = %s'
-    self.db_connection.cursor.exectue(product_query, (product_id,))
+    self.db_connection.cursor.execute(product_query, (product_id,))
     product = self.db_connection.cursor.fetchone()
     if product and product[1] >= quantity:
       price = product[0] * quantity
@@ -100,6 +100,33 @@ class Cart:
     else: 
       print('Product out of stock or Invalid')
 
+    self.db_connection.db.commit()
+
+  def remove_item(self, product_id):
+    # Create var for total Quantity 
+    total_quantity = 0
+
+    # GET cart_item_id 
+    get_cart_item_id_query = 'SELECT quantity FROM cart_items WHERE product_id=%s and cart_id=%s'
+    self.db_connection.cursor.execute(get_cart_item_id_query, (product_id, self.get_cart_id()))
+    quantities = self.db_connection.cursor.fetchall()
+
+    # Check if customer add 2 or more the same item
+    if len(quantities) > 1 :
+      for quanity in quantities:
+        total_quantity += quanity[0]
+    else : 
+      total_quantity = quantities[0][0]
+
+    # Update quantiy in Product 
+    update_quantity_query = 'UPDATE products SET quantity = %s WHERE product_id = %s'
+    self.db_connection.cursor.execute(update_quantity_query, (total_quantity, product_id))
+    
+    # Remove item from cart 
+    query = 'DELETE FROM cart_items WHERE product_id=%s and cart_id=%s'
+    self.db_connection.cursor.execute(query, (product_id, self.get_cart_id()))
+
+    # commit 
     self.db_connection.db.commit()
 
   def check_out(self):
@@ -127,6 +154,40 @@ class Order:
     self.db_connection.db.commit()
 
 # Review Class 
+class Review:
+  def __init__(self, db, product_id, customer_id, rating, comment):
+    self.db_connection = db
+    self. product_id = product_id
+    self.customer_id = customer_id 
+    self.rating = rating
+    self.comment = comment
+    self.review_date = date.today()
+
+  def add_review(self):
+    query = 'INSERT INTO reviews (product_id, customer_id, rating, comment, review_date) VALUES (%s, %s, %s, %s, %s)'
+    self.db_connection.cursor.execute(query, (self.product_id, self.customer_id, self.rating, self.comment, self.review_date))
+    self.db_connection.db.commit()
 
 
+database = Database()
+# Create Customer 
+tim = Customer(database, 'Tim', 'tim@gmail.com', '1234567')
+tim_id = tim.get_customer_id()
 
+# Create new Category 
+electricity = Category(database, 'Electric')
+electricity_id = (electricity.get_category_id())
+
+# Create a new product and assign it to the electronics category
+iphone = Product(database, 'Iphone', 2000, 20, 'Highest Quality Phone')
+iphone_id = iphone.get_product_id()
+
+# Create cart for Tim 
+tim_cart = Cart(database, tim_id)
+tim_cart_id = (tim_cart.get_cart_id())
+
+# Add Item to tim cart
+# tim_cart.add_item(iphone_id, 10)
+
+# Check out 
+tim_cart.remove_item(iphone_id)
